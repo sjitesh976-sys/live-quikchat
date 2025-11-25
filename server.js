@@ -5,6 +5,7 @@ const path = require("path");
 
 const app = express();
 const server = http.createServer(app);
+
 const io = new Server(server, {
   cors: {
     origin: "*",
@@ -44,29 +45,18 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     if (waitingUser === socket.id) waitingUser = null;
-    console.log("Disconnected:", socket.id);
+    console.log("User disconnected:", socket.id);
   });
 });
 
+// Static files
 app.use(express.static(path.join(__dirname)));
 
+// Main HTML route
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
+// Server listen
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => console.log("Server running on port " + PORT));
-let waitingUser = null;
-
-ws.on("connection", (socket) => {
-  if (!waitingUser) {
-    waitingUser = socket;
-  } else {
-    const user1 = waitingUser;
-    const user2 = socket;
-    waitingUser = null;
-
-    user1.send(JSON.stringify({ type: "match" }));
-    user2.send(JSON.stringify({ type: "match" }));
-  }
-});
