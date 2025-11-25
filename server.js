@@ -1,17 +1,14 @@
- const express = require("express");
+const express = require("express");
 const app = express();
 const http = require("http").createServer(app);
 const io = require("socket.io")(http, {
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
-    }
+    cors: { origin: "*" }
 });
 
-// ⭐ Public files (HTML, CSS, JS) serve karne ke liye
+// IMPORTANT: Serve all files from same folder
 app.use(express.static(__dirname));
 
-// ⭐ Default: index.html kholega
+// Default route → index.html khulega
 app.get("/", (req, res) => {
     res.sendFile(__dirname + "/index.html");
 });
@@ -37,8 +34,8 @@ io.on("connection", (socket) => {
     });
 });
 
-// Server start
+// Start server
 const PORT = process.env.PORT || 3000;
 http.listen(PORT, () => {
-    console.log("WebRTC Signaling Server Running on Port " + PORT);
+    console.log("WebRTC Signaling Server Running on " + PORT);
 });
