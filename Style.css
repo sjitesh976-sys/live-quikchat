@@ -1,0 +1,26 @@
+/* Basic styling for Live QuikChat */
+body {
+    margin: 0;
+    padding: 0;
+    background: #0d0d0d;
+    color: #fff;
+    font-family: Arial, sans-serif;
+    text-align: center;
+}
+
+button {
+    margin-top: 20px;
+    padding: 12px 20px;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 18px;
+}
+
+video {
+    width: 45%;
+    border: 2px solid #007bff;
+    border-radius: 10px;
+    margin: 10px;
+}
