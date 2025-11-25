@@ -1,3 +1,4 @@
+
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -18,33 +19,63 @@ let waitingUser = null;
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  if (waitingUser) {
-    io.to(socket.id).emit("match", waitingUser);
-    io.to(waitingUser).emit("match", socket.id);
-    waitingUser = null;
+  // Match user
+  if (!waitingUser) {
+    waitingUser = socket;
+    socket.emit("waiting");
   } else {
-    waitingUser = socket.id;
+    socket.partner = waitingUser;
+    waitingUser.partner = socket;
+
+    socket.emit("match", waitingUser.id);
+    waitingUser.emit("match", socket.id);
+
+    waitingUser = null;
   }
 
+  // OFFER relay
   socket.on("offer", (data) => {
-    io.to(data.target).emit("offer", { sdp: data.sdp, from: socket.id });
+    if (socket.partner) socket.partner.emit("offer", { sdp: data });
   });
 
+  // ANSWER relay
   socket.on("answer", (data) => {
-    io.to(data.target).emit("answer", { sdp: data.sdp });
+    if (socket.partner) socket.partner.emit("answer", { sdp: data });
   });
 
-  socket.on("ice", (data) => {
-    io.to(data.target).emit("ice", data.candidate);
+  // ICE relay
+  socket.on("ice", (candidate) => {
+    if (socket.partner) socket.partner.emit("ice", candidate);
   });
 
+  // Next user
   socket.on("next", () => {
-    waitingUser = socket.id;
-    socket.emit("waiting");
+    if (socket.partner) {
+      socket.partner.emit("disconnected");
+      socket.partner.partner = null;
+    }
+    socket.partner = null;
+
+    if (!waitingUser) waitingUser = socket;
+    else {
+      socket.partner = waitingUser;
+      waitingUser.partner = socket;
+
+      socket.emit("match", waitingUser.id);
+      waitingUser.emit("match", socket.id);
+
+      waitingUser = null;
+    }
   });
 
+  // Disconnect
   socket.on("disconnect", () => {
-    if (waitingUser === socket.id) waitingUser = null;
+    if (socket.partner) {
+      socket.partner.emit("disconnected");
+      socket.partner.partner = null;
+    }
+    if (waitingUser === socket) waitingUser = null;
+
     console.log("User disconnected:", socket.id);
   });
 });
@@ -52,11 +83,10 @@ io.on("connection", (socket) => {
 // Static files
 app.use(express.static(path.join(__dirname)));
 
-// Main HTML route
+// Home route
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
-// Server listen
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => console.log("Server running on port " + PORT));
+server.listen(PORT, () => console.log("Server running on port", PORT));
