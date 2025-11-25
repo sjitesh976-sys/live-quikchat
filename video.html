@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Video Chat</title>
+    <style>
+        body {
+            background: #121212;
+            color: #fff;
+            text-align: center;
+            font-family: Arial;
+        }
+        video {
+            width: 45%;
+            border: 3px solid #00aaff;
+            border-radius: 10px;
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Live Video Chat</h1>
+
+<div id="videos">
+    <video id="myVideo" autoplay playsinline></video>
+    <video id="partnerVideo" autoplay playsinline></video>
+</div>
+
+<script>
+    async function start() {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: true
+        });
+        document.getElementById("myVideo").srcObject = stream;
+    }
+    start();
+</script>
+
+</body>
+</html>
