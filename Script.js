@@ -1,65 +1,84 @@
-const ws = new WebSocket("wss://live-quikchat.onrender.com"); connectBtn = document.getElementById("connectBtn");
+const localVideo = document.getElementById("localVideo");
+const remoteVideo = document.getElementById("remoteVideo");
+const nextBtn = document.getElementById("nextBtn");
 
-connectBtn.addEventListener("click", () => {
-    console.log("Searching for next user...");
-    // Yaha pe hum matching logic add karenge
-});async function startChat() {
-    document.getElementById("videos").style.display = "block";
+let socket = io("/");
+let peerConnection;
+let partnerId;
 
-    const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true
-    });
+const config = {
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" }
+  ]
+};
 
-    document.getElementById("myVideo").srcObject = stream;
+async function start() {
+  // Camera / Mic access
+  const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+  localVideo.srcObject = stream;
 
-    alert("Random partner match system coming soon!");
+  // Create RTCPeerConnection
+  peerConnection = new RTCPeerConnection(config);
+
+  // Add tracks for streaming
+  stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+
+  // When we receive remote stream
+  peerConnection.ontrack = (event) => {
+    remoteVideo.srcObject = event.streams[0];
+  };
+
+  // ICE exchange
+  peerConnection.onicecandidate = (event) => {
+    if (event.candidate && partnerId) {
+      socket.emit("ice", { candidate: event.candidate, partner: partnerId });
+    }
+  };
+
+  // Ask server to find a partner
+  socket.emit("find-partner");
 }
-const nextBtn = document.getElementById("connectBtn");
 
+// When server matches us
+socket.on("partner-found", async (data) => {
+  partnerId = data.partner;
+
+  const offer = await peerConnection.createOffer();
+  await peerConnection.setLocalDescription(offer);
+
+  socket.emit("offer", { offer, partner: partnerId });
+});
+
+// When receiving an offer
+socket.on("offer", async (data) => {
+  partnerId = data.sender;
+
+  await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+
+  const answer = await peerConnection.createAnswer();
+  await peerConnection.setLocalDescription(answer);
+
+  socket.emit("answer", { answer, partner: partnerId });
+});
+
+// When receiving answer
+socket.on("answer", async (data) => {
+  await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+});
+
+// When receiving ICE candidate
+socket.on("ice", async (data) => {
+  try {
+    await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+  } catch (e) {
+    console.error("ICE error", e);
+  }
+});
+
+// Next button refresh partner system
 nextBtn.addEventListener("click", () => {
-  ws.close(); 
   location.reload();
 });
-const express = require("express");
-const app = express();
-const server = app.listen(process.env.PORT || 3000, () => {
-  console.log("Server started");
-});
 
-const WebSocket = require("ws");
-const wss = new WebSocket.Server({ server });
-
-let waitingUser = null;
-
-wss.on("connection", (ws) => {
-  console.log("New user connected");
-
-  if (waitingUser) {
-    // Pair with waiting user
-    ws.partner = waitingUser;
-    waitingUser.partner = ws;
-
-    ws.send(JSON.stringify({ type: "match" }));
-    waitingUser.send(JSON.stringify({ type: "match" }));
-
-    waitingUser = null;
-  } else {
-    waitingUser = ws;
-  }
-
-  ws.on("message", (data) => {
-    if (ws.partner && ws.partner.readyState === WebSocket.OPEN) {
-      ws.partner.send(data);
-    }
-  });
-
-  ws.on("close", () => {
-    console.log("User disconnected");
-    if (ws.partner) {
-      ws.partner.send(JSON.stringify({ type: "leave" }));
-      ws.partner.partner = null;
-    }
-    if (waitingUser === ws) waitingUser = null;
-  });
-});
+// Start system
+start();
