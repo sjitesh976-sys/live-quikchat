@@ -1,4 +1,9 @@
-async function startChat() {
+const connectBtn = document.getElementById("connectBtn");
+
+connectBtn.addEventListener("click", () => {
+    console.log("Searching for next user...");
+    // Yaha pe hum matching logic add karenge
+});async function startChat() {
     document.getElementById("videos").style.display = "block";
 
     const stream = await navigator.mediaDevices.getUserMedia({
