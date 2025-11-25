@@ -9,7 +9,7 @@
             background: #121212;
             color: #fff;
             text-align: center;
-            font-family: Arial;
+            font-family: Arial, sans-serif;
         }
         video {
             width: 45%;
@@ -17,74 +17,27 @@
             border-radius: 10px;
             margin: 10px;
         }
+        #connectBtn {
+            padding: 10px 20px;
+            background: #00aaff;
+            border: none;
+            border-radius: 10px;
+            margin-top: 15px;
+            font-size: 18px;
+            color: white;
+        }
     </style>
 </head>
 <body>
 
-
 <button id="connectBtn">Next User</button>
-
 <h1>Live Video Chat</h1>
 
 <div id="videos">
-  <video id="localVideo" autoplay muted playsinline></video>
-  <video id="remoteVideo" autoplay playsinline></video>
+    <video id="localVideo" autoplay muted playsinline></video>
+    <video id="remoteVideo" autoplay playsinline></video>
 </div>
 
-<script>
-  // full WebRTC code yahan paste karo
-</script>
-
-</body>
-</html>
-<h1>Live Video Chat</h1>
-
-<div id="videos">
-    <video id="myVideo" autoplay playsinline></video>
-    <video id="partnerVideo" autoplay playsinline></video>
-</div>
-
-<script>
-    async function start() {
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: true
-        });
-        document.getElementById("myVideo").srcObject = stream;
-    }
-    start();
-</script>
-
-</body>
-</html>
-<script>
-  const myVideo = document.createElement("video");
-  const remoteVideo = document.createElement("video");
-
-  myVideo.autoplay = true;
-  remoteVideo.autoplay = true;
-
-  const videoBoxes = document.querySelectorAll(".video-box");
-  videoBoxes[0].appendChild(myVideo);
-  videoBoxes[1].appendChild(remoteVideo);
-
-  async function startVideo() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true
-      });
-      myVideo.srcObject = stream;
-    } catch (err) {
-      alert("Camera not allowed !");
-      console.error(err);
-    }
-  }
-
-  startVideo();
-</script>
-</body>
-</html>
 <script>
   const localVideo = document.getElementById("localVideo");
   const remoteVideo = document.getElementById("remoteVideo");
@@ -116,6 +69,9 @@
         }
       };
 
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      ws.send(JSON.stringify({ type: "offer", offer }));
     } catch (err) {
       console.error("Camera Error:", err);
     }
@@ -141,4 +97,7 @@
   };
 
   startCamera();
-      </script>
+</script>
+
+</body>
+</html>
