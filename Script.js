@@ -1,4 +1,4 @@
-const connectBtn = document.getElementById("connectBtn");
+const ws = new WebSocket("wss://live-quikchat.onrender.com"); connectBtn = document.getElementById("connectBtn");
 
 connectBtn.addEventListener("click", () => {
     console.log("Searching for next user...");
