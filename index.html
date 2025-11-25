@@ -1,23 +1,17 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Live QuikChat - Random Video Chat</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Live QuikChat</title>
 </head>
 <body>
 
-    <h1>Live QuikChat – 1v1 Random Video Chat</h1>
-    <p>Press Start to find a random match</p>
+  <h1>Live QuikChat – 1v1 Random Video Chat</h1>
+  <p>Press Start to find a random match</p>
 
-    <button onclick="startChat()">Start Chat</button>
+  <!-- IMPORTANT: This button sends user to video.html -->
+  <button onclick="window.location.href='video.html'">Start Chat</button>
 
-    <div id="videos" style="display:none;">
-        <video id="myVideo" autoplay playsinline></video>
-        <video id="partnerVideo" autoplay playsinline></video>
-    </div>
-
-    <script src="script.js"></script>
 </body>
 </html>
