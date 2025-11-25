@@ -1,60 +1,44 @@
-import express from "express";
-import { WebSocketServer } from "ws";
-
+ const express = require("express");
 const app = express();
-const PORT = process.env.PORT || 10000;
+const http = require("http").createServer(app);
+const io = require("socket.io")(http, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
 
-// Serve static files (optional)
+// ⭐ Public files (HTML, CSS, JS) serve karne ke liye
+app.use(express.static(__dirname));
+
+// ⭐ Default: index.html kholega
 app.get("/", (req, res) => {
-  res.send("WebRTC Signaling Server is Running");
+    res.sendFile(__dirname + "/index.html");
 });
 
-// Start HTTP server
-const server = app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// WebRTC signaling
+io.on("connection", (socket) => {
+    console.log("User Connected: " + socket.id);
+
+    socket.on("findPartner", () => {
+        socket.broadcast.emit("partnerFound", socket.id);
+    });
+
+    socket.on("offer", (data) => {
+        socket.to(data.to).emit("offer", data);
+    });
+
+    socket.on("answer", (data) => {
+        socket.to(data.to).emit("answer", data);
+    });
+
+    socket.on("iceCandidate", (data) => {
+        socket.to(data.to).emit("iceCandidate", data);
+    });
 });
 
-// WebSocket Server
-const wss = new WebSocketServer({ server });
-
-let waitingUser = null;
-
-wss.on("connection", (ws) => {
-  console.log("User connected");
-
-  // Pair users
-  if (!waitingUser) {
-    waitingUser = ws;
-    ws.send(JSON.stringify({ type: "waiting" }));
-  } else {
-    // Pair both users
-    ws.partner = waitingUser;
-    waitingUser.partner = ws;
-
-    waitingUser.send(JSON.stringify({ type: "matched" }));
-    ws.send(JSON.stringify({ type: "matched" }));
-
-    waitingUser = null;
-  }
-
-  // Handle messages
-  ws.on("message", (message) => {
-    if (ws.partner) {
-      ws.partner.send(message.toString());
-    }
-  });
-
-  // Handle disconnect
-  ws.on("close", () => {
-    if (ws.partner) {
-      ws.partner.send(JSON.stringify({ type: "partner-disconnected" }));
-      ws.partner.partner = null;
-    }
-
-    if (waitingUser === ws) {
-      waitingUser = null;
-    }
-
-    console.log("User disconnected");
-  });
+// Server start
+const PORT = process.env.PORT || 3000;
+http.listen(PORT, () => {
+    console.log("WebRTC Signaling Server Running on Port " + PORT);
 });
