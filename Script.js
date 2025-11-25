@@ -15,3 +15,9 @@ connectBtn.addEventListener("click", () => {
 
     alert("Random partner match system coming soon!");
 }
+const nextBtn = document.getElementById("connectBtn");
+
+nextBtn.addEventListener("click", () => {
+  ws.close(); 
+  location.reload();
+});
