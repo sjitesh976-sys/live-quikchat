@@ -41,3 +41,31 @@
 
 </body>
 </html>
+<script>
+  const myVideo = document.createElement("video");
+  const remoteVideo = document.createElement("video");
+
+  myVideo.autoplay = true;
+  remoteVideo.autoplay = true;
+
+  const videoBoxes = document.querySelectorAll(".video-box");
+  videoBoxes[0].appendChild(myVideo);
+  videoBoxes[1].appendChild(remoteVideo);
+
+  async function startVideo() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true
+      });
+      myVideo.srcObject = stream;
+    } catch (err) {
+      alert("Camera not allowed !");
+      console.error(err);
+    }
+  }
+
+  startVideo();
+</script>
+</body>
+</html>
