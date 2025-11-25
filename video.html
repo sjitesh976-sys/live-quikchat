@@ -69,3 +69,60 @@
 </script>
 </body>
 </html>
+<script>
+  const localVideo = document.getElementById("localVideo");
+  const remoteVideo = document.getElementById("remoteVideo");
+  const ws = new WebSocket("wss://live-quikchat.onrender.com");
+  let peerConnection;
+  const config = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+
+  async function startCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true
+      });
+      localVideo.srcObject = stream;
+      localVideo.play();
+
+      peerConnection = new RTCPeerConnection(config);
+      stream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, stream);
+      });
+
+      peerConnection.ontrack = (event) => {
+        remoteVideo.srcObject = event.streams[0];
+      };
+
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          ws.send(JSON.stringify({ type: "candidate", candidate: event.candidate }));
+        }
+      };
+
+    } catch (err) {
+      console.error("Camera Error:", err);
+    }
+  }
+
+  ws.onmessage = async (msg) => {
+    const data = JSON.parse(msg.data);
+
+    if (data.type === "offer") {
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+      ws.send(JSON.stringify({ type: "answer", answer }));
+    }
+
+    if (data.type === "answer") {
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+    }
+
+    if (data.type === "candidate") {
+      await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+    }
+  };
+
+  startCamera();
+      </script>
