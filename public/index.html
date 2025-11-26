@@ -1,27 +1,17 @@
-
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Live QuickChat</title>
+  <title>Random Video Chat</title>
   <link rel="stylesheet" href="style.css" />
 </head>
-
 <body>
-  <div class="container">
-    <h2>Live QuickChat Video Support</h2>
+  <h2>Random Video Chat</h2>
 
-    <div class="button-group">
-      <button id="startBtn">Start Camera</button>
-      <button id="callBtn">Call Support</button>
-    </div>
+  <video id="localVideo" autoplay playsinline></video>
+  <video id="remoteVideo" autoplay playsinline></video>
 
-    <div class="video-wrapper">
-      <video id="localVideo" autoplay muted playsinline></video>
-      <video id="remoteVideo" autoplay playsinline></video>
-    </div>
-  </div>
+  <button id="startBtn">Start Camera</button>
+  <button id="findBtn">Find Partner</button>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="script.js"></script>
