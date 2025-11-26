@@ -1,136 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Random Video Chat</title>
-
-  <!-- FontAwesome Icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-
-  <style>
-    body {
-      margin: 0;
-      background: linear-gradient(135deg, #1a1a1a, #000000);
-      font-family: Arial, sans-serif;
-      color: white;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      height: 100vh;
-      overflow: hidden;
-    }
-
-    h2 {
-      margin: 10px 0;
-      font-size: 24px;
-      font-weight: bold;
-    }
-
-    #videos {
-      display: flex;
-      width: 90%;
-      height: 70%;
-      gap: 10px;
-    }
-
-    video {
-      width: 50%;
-      height: 100%;
-      background: black;
-      border-radius: 14px;
-      object-fit: cover;
-    }
-
-    /* Buttons */
-    #controls {
-      margin-top: 15px;
-      display: flex;
-      gap: 15px;
-    }
-
-    button {
-      width: 60px;
-      height: 60px;
-      border-radius: 50%;
-      border: none;
-      font-size: 22px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      cursor: pointer;
-      transition: 0.3s;
-      color: white;
-    }
-
-    #startBtn { background: #28a745; }
-    #nextBtn { background: #ff4757; }
-    #muteBtn { background: #1e90ff; }
-
-    button:hover {
-      transform: scale(1.1);
-      opacity: 0.85;
-    }
-
-    /* Match overlay */
-    #matching {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: rgba(0,0,0,0.85);
-      display: none;
-      justify-content: center;
-      align-items: center;
-      font-size: 35px;
-      font-weight: bold;
-      z-index: 9999;
-      animation: pulse 1.5s infinite ease-in-out;
-    }
-
-    @keyframes pulse {
-      0% { opacity: 0.2; }
-      50% { opacity: 1; }
-      100% { opacity: 0.2; }
-    }
-
-    /* Responsive for mobile */
-    @media (max-width: 768px) {
-      #videos {
-        flex-direction: column;
-        height: 75%;
-      }
-      video {
-        width: 100%;
-        height: 50%;
-      }
-      button {
-        font-size: 18px;
-        width: 55px;
-        height: 55px;
-      }
-    }
-  </style>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Random Video Chat</title>
+    <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-  <h2>Random Video Chat</h2>
+    <h1 class="title">Random Video Chat</h1>
 
-  <div id="videos">
-    <video id="localVideo" autoplay muted playsinline></video>
-    <video id="remoteVideo" autoplay playsinline></video>
-  </div>
+    <div class="video-container">
+        <video id="localVideo" autoplay playsinline muted></video>
+        <video id="remoteVideo" autoplay playsinline></video>
+    </div>
 
-  <div id="controls">
-    <button id="startBtn"><i class="fa-solid fa-play"></i></button>
-    <button id="nextBtn"><i class="fa-solid fa-forward"></i></button>
-    <button id="muteBtn"><i class="fa-solid fa-microphone-slash"></i></button>
-  </div>
+    <div class="controls">
+        <button id="startBtn" class="start">▶</button>
+        <button id="nextBtn" class="next">⏭</button>
+        <button id="muteBtn" class="mute">🔇</button>
+        <button id="endBtn" class="end">⏹</button>
+    </div>
 
-  <div id="matching">Finding a partner...</div>
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+<script src="script.js"></script>
 
-  <!-- Socket.io + Script -->
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-  <script src="script.js"></script>
+<script>
+document.getElementById("startBtn").addEventListener("click", startCall);
+document.getElementById("nextBtn").addEventListener("click", nextUser);
+document.getElementById("muteBtn").addEventListener("click", toggleMute);
+document.getElementById("endBtn").addEventListener("click", endCall);
+</script>
 
 </body>
 </html>
