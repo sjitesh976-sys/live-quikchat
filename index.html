@@ -1,31 +1,46 @@
 
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Random Video Chat</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>QuikChat — Random Video</title>
 
-    <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 </head>
 <body>
+  <header class="topbar">
+    <h1>QuikChat</h1>
+    <div id="online">Online: 0</div>
+  </header>
 
-    <h1 class="title">Random Video Chat</h1>
+  <main class="main">
+    <div class="video-wrap">
+      <video id="localVideo" autoplay muted playsinline></video>
+      <video id="remoteVideo" autoplay playsinline></video>
+    </div>
 
-    <div class="video-container">
-        <video id="localVideo" autoplay muted playsinline></video>
-        <video id="remoteVideo" autoplay playsinline></video>
+    <div id="matching" class="overlay hidden">
+      <div class="box">
+        <div class="spinner"></div>
+        <div>Finding partner...</div>
+      </div>
     </div>
 
     <div class="controls">
-        <button class="start" onclick="start()">▶️ Start</button>
-        <button class="next" onclick="next()">⏭ Next</button>
-        <button class="mute" onclick="toggleMute()">🔇 Mute</button>
-        <button class="end" onclick="endCall()">⏹ End</button>
+      <button id="startBtn" title="Start"><i class="fa-solid fa-play"></i></button>
+      <button id="nextBtn" title="Next"><i class="fa-solid fa-forward"></i></button>
+      <button id="muteBtn" title="Mute/Unmute"><i id="muteIcon" class="fa-solid fa-microphone-slash"></i></button>
+      <button id="endBtn" title="End"><i class="fa-solid fa-stop"></i></button>
     </div>
 
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    <script src="script.js"></script>
+    <div class="footer-note">
+      <small>Open on two devices to test remote video. Use browser console for logs.</small>
+    </div>
+  </main>
 
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
