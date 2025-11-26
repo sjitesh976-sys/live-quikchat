@@ -4,125 +4,110 @@ const socket = io();
 const localVideo = document.getElementById("localVideo");
 const remoteVideo = document.getElementById("remoteVideo");
 const findBtn = document.getElementById("findBtn");
+const nextBtn = document.getElementById("nextBtn");
 
 let peerConnection;
 let partnerId;
+let localStream;
 
-// Button Find Partner
+// ===== Start / Find Partner =====
 findBtn.addEventListener("click", () => {
-  console.log("Find Partner clicked");
-  socket.emit("findPartner");
+  startSearching();
 });
 
-// Partner Found From Server
+nextBtn.addEventListener("click", () => {
+  cleanupConnection();
+  startSearching();
+});
+
+function startSearching() {
+  console.log("Searching Partner...");
+  socket.emit("findPartner");
+}
+
+// ===== When Partner Found =====
 socket.on("partnerFound", async (id) => {
   console.log("Matched with:", id);
   partnerId = id;
 
-  const stream = await navigator.mediaDevices.getUserMedia({
-    video: true,
-    audio: true,
-  });
+  await startLocalStream();
+  await createPeerConnection();
 
-  localVideo.srcObject = stream;
-
-  peerConnection = new RTCPeerConnection({
-    iceServers: [
-      { urls: "stun:stun.l.google.com:19302" },
-    ],
-  });
-
-  // Add Local Stream Tracks
-  stream.getTracks().forEach((track) => peerConnection.addTrack(track, stream));
-
-  // Remote Stream
-  peerConnection.ontrack = (event) => {
-    remoteVideo.srcObject = event.streams[0];
-  };
-
-  // Send ICE Candidate
-  peerConnection.onicecandidate = (event) => {
-    if (event.candidate) {
-      socket.emit("iceCandidate", {
-        candidate: event.candidate,
-        partner: partnerId,
-      });
-    }
-  };
-
-  // Create Offer
   const offer = await peerConnection.createOffer();
   await peerConnection.setLocalDescription(offer);
 
-  socket.emit("offer", {
-    sdp: offer,
-    partner: partnerId,
-  });
+  socket.emit("offer", { sdp: offer, partner: partnerId });
 });
 
-// Receive Offer
+// ===== Receive Offer =====
 socket.on("offer", async (data) => {
-  console.log("Offer received from:", data.from);
+  console.log("Offer received");
 
   partnerId = data.from;
 
-  const stream = await navigator.mediaDevices.getUserMedia({
-    video: true,
-    audio: true,
-  });
-
-  localVideo.srcObject = stream;
-
-  peerConnection = new RTCPeerConnection({
-    iceServers: [
-      { urls: "stun:stun.l.google.com:19302" },
-    ],
-  });
-
-  stream.getTracks().forEach((track) => peerConnection.addTrack(track, stream));
-
-  peerConnection.ontrack = (event) => {
-    remoteVideo.srcObject = event.streams[0];
-  };
-
-  peerConnection.onicecandidate = (event) => {
-    if (event.candidate) {
-      socket.emit("iceCandidate", {
-        candidate: event.candidate,
-        partner: partnerId,
-      });
-    }
-  };
+  await startLocalStream();
+  await createPeerConnection();
 
   await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
   const answer = await peerConnection.createAnswer();
   await peerConnection.setLocalDescription(answer);
 
-  socket.emit("answer", {
-    sdp: answer,
-    partner: partnerId,
-  });
+  socket.emit("answer", { sdp: answer, partner: partnerId });
 });
 
-// Receive Answer
+// ===== Receive Answer =====
 socket.on("answer", async (data) => {
   console.log("Answer received");
   await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
 });
 
-// Receive ICE Candidate
+// ===== Receive ICE =====
 socket.on("iceCandidate", async (data) => {
-  console.log("ICE Candidate received");
-  try {
-    await peerConnection.addIceCandidate(data.candidate);
-  } catch (e) {
-    console.error("Error adding ICE", e);
+  if (data.candidate) {
+    console.log("ICE received");
+    try {
+      await peerConnection.addIceCandidate(data.candidate);
+    } catch (e) {
+      console.error("ICE error:", e);
+    }
   }
 });
 
-// Partner Disconnected
+// ===== Partner Disconnect =====
 socket.on("partnerDisconnected", () => {
   console.log("Partner disconnected");
-  alert("Partner disconnected. Try again.");
-  window.location.reload();
+  cleanupConnection();
 });
+
+// ===== Helper Functions =====
+async function startLocalStream() {
+  if (!localStream) {
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    localVideo.srcObject = localStream;
+  }
+}
+
+async function createPeerConnection() {
+  peerConnection = new RTCPeerConnection({
+    iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+  });
+
+  localStream.getTracks().forEach((track) => peerConnection.addTrack(track, localStream));
+
+  peerConnection.ontrack = (event) => {
+    remoteVideo.srcObject = event.streams[0];
+  };
+
+  peerConnection.onicecandidate = (event) => {
+    if (event.candidate) {
+      socket.emit("iceCandidate", { candidate: event.candidate, partner: partnerId });
+    }
+  };
+}
+
+function cleanupConnection() {
+  if (peerConnection) peerConnection.close();
+  peerConnection = null;
+  partnerId = null;
+  remoteVideo.srcObject = null;
+}
