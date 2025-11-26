@@ -1,103 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Video Chat</title>
-    <style>
-        body {
-            background: #121212;
-            color: #fff;
-            text-align: center;
-            font-family: Arial, sans-serif;
-        }
-        video {
-            width: 45%;
-            border: 3px solid #00aaff;
-            border-radius: 10px;
-            margin: 10px;
-        }
-        #connectBtn {
-            padding: 10px 20px;
-            background: #00aaff;
-            border: none;
-            border-radius: 10px;
-            margin-top: 15px;
-            font-size: 18px;
-            color: white;
-        }
-    </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Random Video Chat</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <div class="container video-wrap">
+    <div class="header">
+      <h1>Live Video Chat</h1>
+      <div class="small">Random 1:1 • <button id="backHome" style="background:transparent;border:none;color:var(--accent);cursor:pointer">Home</button></div>
+    </div>
 
-<button id="connectBtn">Next User</button>
-<h1>Live Video Chat</h1>
+    <div class="videos">
+      <div>
+        <label class="small">You</label>
+        <video id="localVideo" autoplay muted playsinline></video>
+      </div>
 
-<div id="videos">
-    <video id="localVideo" autoplay muted playsinline></video>
-    <video id="remoteVideo" autoplay playsinline></video>
-</div>
+      <div>
+        <label class="small">Partner</label>
+        <video id="remoteVideo" autoplay playsinline></video>
+      </div>
+    </div>
 
-<script>
-  const localVideo = document.getElementById("localVideo");
-  const remoteVideo = document.getElementById("remoteVideo");
-  const ws = new WebSocket("wss://live-quikchat.onrender.com");
-  let peerConnection;
-  const config = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+    <div class="controls">
+      <button id="findBtn">Find Partner</button>
+      <button id="nextBtn" disabled>Next User</button>
+    </div>
 
-  async function startCamera() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true
-      });
-      localVideo.srcObject = stream;
-      localVideo.play();
+    <div class="chat">
+      <div class="chat-messages" id="chatMessages"></div>
+      <div class="input-row">
+        <input id="msgInput" placeholder="Say hi..." />
+        <button id="sendBtn">Send</button>
+      </div>
+      <div class="small" id="statusText">Status: Not connected</div>
+    </div>
+  </div>
 
-      peerConnection = new RTCPeerConnection(config);
-      stream.getTracks().forEach(track => {
-        peerConnection.addTrack(track, stream);
-      });
-
-      peerConnection.ontrack = (event) => {
-        remoteVideo.srcObject = event.streams[0];
-      };
-
-      peerConnection.onicecandidate = (event) => {
-        if (event.candidate) {
-          ws.send(JSON.stringify({ type: "candidate", candidate: event.candidate }));
-        }
-      };
-
-      const offer = await peerConnection.createOffer();
-      await peerConnection.setLocalDescription(offer);
-      ws.send(JSON.stringify({ type: "offer", offer }));
-    } catch (err) {
-      console.error("Camera Error:", err);
-    }
-  }
-
-  ws.onmessage = async (msg) => {
-    const data = JSON.parse(msg.data);
-
-    if (data.type === "offer") {
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
-      const answer = await peerConnection.createAnswer();
-      await peerConnection.setLocalDescription(answer);
-      ws.send(JSON.stringify({ type: "answer", answer }));
-    }
-
-    if (data.type === "answer") {
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-    }
-
-    if (data.type === "candidate") {
-      await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-    }
-  };
-
-  startCamera();
-</script>
-
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="video-script.js"></script>
 </body>
 </html>
