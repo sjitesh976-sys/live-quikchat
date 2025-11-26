@@ -1,53 +1,28 @@
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
-const path = require("path");
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Random Video Chat</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <h2>Random Video Chat</h2>
 
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
+  <video id="localVideo" autoplay playsinline muted></video>
+  <video id="remoteVideo" autoplay playsinline></video>
 
-app.use(express.static(path.join(__dirname, "public")));
+  <button id="startBtn">Start Camera</button>
+  <button id="findBtn">Find Partner</button>
 
-let waitingUser = null; // store waiting user
-
-io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
-
-  socket.on("findPartner", () => {
-    if (waitingUser && waitingUser !== socket.id) {
-      io.to(socket.id).emit("partnerFound", waitingUser);
-      io.to(waitingUser).emit("partnerFound", socket.id);
-      waitingUser = null;
-    } else {
-      waitingUser = socket.id;
-      console.log("User waiting:", socket.id);
+  <div id="debug" style="position:fixed;bottom:5px;left:5px;color:#0f0;background:#000;padding:5px;font-size:12px;z-index:99999"></div>
+  <script>
+    function log(m){
+      document.getElementById("debug").innerHTML += m + "<br>";
+      console.log(m);
     }
-  });
+    log("Debug panel ready");
+  </script>
 
-  socket.on("offer", (data) => {
-    io.to(data.partnerId).emit("offer", {
-      offer: data.offer,
-      sender: socket.id,
-    });
-  });
-
-  socket.on("answer", (data) => {
-    io.to(data.partnerId).emit("answer", {
-      answer: data.answer,
-      sender: socket.id,
-    });
-  });
-
-  socket.on("ice-candidate", (data) => {
-    io.to(data.partnerId).emit("ice-candidate", data.candidate);
-  });
-
-  socket.on("disconnect", () => {
-    if (waitingUser === socket.id) waitingUser = null;
-    console.log("User disconnected:", socket.id);
-  });
-});
-
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
