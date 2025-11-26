@@ -1,11 +1,13 @@
-const socket = io();
-let localStream;
-let peerConnection;
+// script.js
+const socket = io(); // same-origin
+let localStream = null;
+let pc = null;
 let partnerId = null;
 
 const servers = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" }
+    // Add TURN here if needed
   ]
 };
 
@@ -14,89 +16,160 @@ const remoteVideo = document.getElementById("remoteVideo");
 const startBtn = document.getElementById("startBtn");
 const nextBtn = document.getElementById("nextBtn");
 const muteBtn = document.getElementById("muteBtn");
+const endBtn = document.getElementById("endBtn");
 const matching = document.getElementById("matching");
+const onlineCounter = document.getElementById("online");
+const muteIcon = document.getElementById("muteIcon");
 
-startBtn.onclick = async () => {
-  matching.style.display = "flex";
+function log(...args){ console.log("[QuikChat]", ...args); }
 
-  localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-  localVideo.srcObject = localStream;
+socket.on("online-count", (n) => {
+  if (onlineCounter) onlineCounter.innerText = `Online: ${n}`;
+});
 
-  createPeerConnection();
-
-  socket.emit("find-partner");
-};
-
-nextBtn.onclick = () => {
-  socket.emit("next");
-  matching.style.display = "flex";
-};
-
-muteBtn.onclick = () => {
-  const enabled = localStream.getAudioTracks()[0].enabled;
-  localStream.getAudioTracks()[0].enabled = !enabled;
-  muteBtn.innerHTML = enabled 
-    ? '<i class="fa-solid fa-microphone"></i>' 
-    : '<i class="fa-solid fa-microphone-slash"></i>';
-};
-
-function createPeerConnection() {
-  peerConnection = new RTCPeerConnection(servers);
-
-  localStream.getTracks().forEach(track =>
-    peerConnection.addTrack(track, localStream)
-  );
-
-  peerConnection.ontrack = (event) => {
-    remoteVideo.srcObject = event.streams[0];
-    matching.style.display = "none";
-  };
-
-  peerConnection.onicecandidate = (event) => {
-    if (event.candidate && partnerId) {
-      socket.emit("signal", {
-        partnerId,
-        signal: { candidate: event.candidate }
-      });
-    }
-  };
+function showMatching(show = true){
+  if(!matching) return;
+  if(show) matching.classList.remove("hidden");
+  else matching.classList.add("hidden");
 }
 
+function createPeerConnection(){
+  pc = new RTCPeerConnection(servers);
+
+  pc.onicecandidate = (e) => {
+    if(e.candidate && partnerId){
+      socket.emit("signal", { partnerId, signal: { candidate: e.candidate } });
+      log("sent candidate");
+    }
+  };
+
+  pc.ontrack = (e) => {
+    log("ontrack", e.streams);
+    if(e.streams && e.streams[0]) {
+      remoteVideo.srcObject = e.streams[0];
+      showMatching(false);
+    }
+  };
+
+  pc.onconnectionstatechange = () => {
+    if(!pc) return;
+    log("pc state:", pc.connectionState);
+    if(pc.connectionState === "disconnected" || pc.connectionState === "failed"){
+      remoteVideo.srcObject = null;
+      showMatching(true);
+    }
+  };
+
+  if(localStream){
+    localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+  }
+}
+
+async function startFlow(){
+  try{
+    showMatching(true);
+    log("Requesting local media...");
+    localStream = await navigator.mediaDevices.getUserMedia({ video:true, audio:true });
+    localVideo.srcObject = localStream;
+    log("Local stream ready");
+  }catch(err){
+    console.error("getUserMedia error", err);
+    alert("Allow camera & microphone and reload.");
+    showMatching(false);
+    return;
+  }
+
+  createPeerConnection();
+  socket.emit("find-partner");
+  log("find-partner emitted");
+}
+
+function sendNext(){
+  socket.emit("next");
+  if(pc){ try{ pc.close(); }catch(e){} pc = null; }
+  remoteVideo.srcObject = null;
+  showMatching(true);
+  if(localStream) createPeerConnection();
+}
+
+function toggleMute(){
+  if(!localStream) return;
+  const tr = localStream.getAudioTracks()[0];
+  if(!tr) return;
+  tr.enabled = !tr.enabled;
+  muteIcon.className = tr.enabled ? "fa-solid fa-microphone" : "fa-solid fa-microphone-slash";
+}
+
+function endCall(){
+  if(pc){ try{ pc.close(); }catch(e){} pc = null; }
+  if(localStream){ localStream.getTracks().forEach(t=>t.stop()); localStream = null; }
+  localVideo.srcObject = null;
+  remoteVideo.srcObject = null;
+  showMatching(false);
+  socket.emit("next");
+}
+
+// socket listeners
+socket.on("connect", () => { log("socket connected:", socket.id); });
+
 socket.on("partner", async (id) => {
+  log("partner:", id);
   partnerId = id;
+  if(!pc) createPeerConnection();
 
-  const offer = await peerConnection.createOffer();
-  await peerConnection.setLocalDescription(offer);
-
-  socket.emit("signal", {
-    partnerId,
-    signal: { description: peerConnection.localDescription }
-  });
+  try{
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    socket.emit("signal", { partnerId, signal: { description: pc.localDescription } });
+    log("sent offer");
+  }catch(err){
+    console.error("offer error", err);
+  }
 });
 
 socket.on("signal", async (data) => {
-  if (data.signal.description) {
-    await peerConnection.setRemoteDescription(data.signal.description);
-    if (data.signal.description.type === "offer") {
-      const answer = await peerConnection.createAnswer();
-      await peerConnection.setLocalDescription(answer);
+  if(!data || !data.signal) return;
+  log("signal from", data.from, data.signal);
+  partnerId = data.from;
 
-      socket.emit("signal", {
-        partnerId: data.from,
-        signal: { description: peerConnection.localDescription }
-      });
+  if(data.signal.description){
+    const desc = data.signal.description;
+    try{
+      await pc.setRemoteDescription(desc);
+      log("set remote desc", desc.type);
+      if(desc.type === "offer"){
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        socket.emit("signal", { partnerId: data.from, signal: { description: pc.localDescription } });
+        log("sent answer");
+      }
+    }catch(err){
+      console.error("remote desc error", err);
     }
   }
 
-  if (data.signal.candidate) {
-    await peerConnection.addIceCandidate(data.signal.candidate);
+  if(data.signal.candidate){
+    try{
+      await pc.addIceCandidate(data.signal.candidate);
+      log("added candidate");
+    }catch(err){
+      console.error("addIceCandidate error", err);
+    }
   }
 });
 
 socket.on("end", () => {
+  log("partner ended");
+  if(pc){ try{ pc.close(); }catch(e){} pc = null; }
   remoteVideo.srcObject = null;
-  matching.style.display = "flex";
-
-  peerConnection.close();
-  createPeerConnection();
+  showMatching(true);
 });
+
+// attach UI handlers
+startBtn.addEventListener("click", startFlow);
+nextBtn.addEventListener("click", sendNext);
+muteBtn.addEventListener("click", toggleMute);
+endBtn.addEventListener("click", endCall);
+
+// request initial online-count on connect
+socket.on("connect", () => socket.emit("request-online-count"));
