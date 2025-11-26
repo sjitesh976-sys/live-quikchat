@@ -1,62 +1,117 @@
-import express from "express";
-import http from "http";
-import { Server } from "socket.io";
-import cors from "cors";
+const socket = io();
 
-const app = express();
-app.use(cors());
-app.use(express.static("public"));
+// DOM elements
+const localVideo = document.getElementById("localVideo");
+const remoteVideo = document.getElementById("remoteVideo");
+const findBtn = document.getElementById("findBtn");
 
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: "*",
+let peerConnection;
+let partnerId;
+
+// Button Find Partner
+findBtn.addEventListener("click", () => {
+  console.log("Find Partner clicked");
+  socket.emit("findPartner");
+});
+
+// Partner Found Response (From Server)
+socket.on("partnerFound", async (id) => {
+  console.log("Matched with:", id);
+  partnerId = id;
+
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: true,
+    audio: true
+  });
+
+  localVideo.srcObject = stream;
+
+  peerConnection = new RTCPeerConnection();
+
+  stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+
+  peerConnection.ontrack = (event) => {
+    remoteVideo.srcObject = event.streams[0];
+  };
+
+  peerConnection.onicecandidate = (event) => {
+    if (event.candidate) {
+      socket.emit("iceCandidate", {
+        candidate: event.candidate,
+        partner: partnerId
+      });
+    }
+  };
+
+  const offer = await peerConnection.createOffer();
+  await peerConnection.setLocalDescription(offer);
+
+  socket.emit("offer", {
+    sdp: offer,
+    partner: partnerId
+  });
+});
+
+// Receive Offer
+socket.on("offer", async ({ sdp, from }) => {
+  partnerId = from;
+
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: true,
+    audio: true
+  });
+
+  localVideo.srcObject = stream;
+
+  peerConnection = new RTCPeerConnection();
+
+  stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+
+  peerConnection.ontrack = (event) => {
+    remoteVideo.srcObject = event.streams[0];
+  };
+
+  peerConnection.onicecandidate = (event) => {
+    if (event.candidate) {
+      socket.emit("iceCandidate", {
+        candidate: event.candidate,
+        partner: partnerId
+      });
+    }
+  };
+
+  await peerConnection.setRemoteDescription(sdp);
+
+  const answer = await peerConnection.createAnswer();
+  await peerConnection.setLocalDescription(answer);
+
+  socket.emit("answer", {
+    sdp: answer,
+    partner: partnerId
+  });
+
+  console.log("Answer sent");
+});
+
+// Receive Answer
+socket.on("answer", async ({ sdp }) => {
+  console.log("Answer received");
+  await peerConnection.setRemoteDescription(sdp);
+});
+
+// Receive ICE Candidate
+socket.on("iceCandidate", async (candidate) => {
+  console.log("ICE Candidate received");
+  try {
+    await peerConnection.addIceCandidate(candidate);
+  } catch (e) {
+    console.error("Error adding candidate:", e);
   }
 });
 
-let waitingUser = null;
-
-io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
-
-  // Find Partner
-  socket.on("findPartner", () => {
-    if (waitingUser && waitingUser !== socket.id) {
-      io.to(socket.id).emit("partnerFound", waitingUser);
-      io.to(waitingUser).emit("partnerFound", socket.id);
-      waitingUser = null;
-    } else {
-      waitingUser = socket.id;
-      console.log("Waiting user:", waitingUser);
-    }
-  });
-
-  // Offer SDP
-  socket.on("offer", (data) => {
-    io.to(data.partner).emit("offer", {
-      sdp: data.sdp,
-      from: socket.id
-    });
-  });
-
-  // Answer SDP
-  socket.on("answer", (data) => {
-    io.to(data.partner).emit("answer", {
-      sdp: data.sdp,
-      from: socket.id
-    });
-  });
-
-  // ICE Candidate
-  socket.on("iceCandidate", (data) => {
-    io.to(data.partner).emit("iceCandidate", data.candidate);
-  });
-
-  // Disconnect
-  socket.on("disconnect", () => {
-    if (waitingUser === socket.id) waitingUser = null;
-    socket.broadcast.emit("partnerDisconnected");
-  });
+// Partner Disconnected
+socket.on("partnerDisconnected", () => {
+  alert("❌ Partner disconnected");
+  if (peerConnection) peerConnection.close();
+  remoteVideo.srcObject = null;
 });
-
-server.listen(3000, () => console.log("🚀 Server running on port 3000"));
