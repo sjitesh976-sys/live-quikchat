@@ -1,84 +1,85 @@
+
+const socket = io("https://live-quikchat-u.onrender.com");
+
 const localVideo = document.getElementById("localVideo");
 const remoteVideo = document.getElementById("remoteVideo");
 const nextBtn = document.getElementById("nextBtn");
 
-let socket = io("/");
 let peerConnection;
-let partnerId;
+let localStream;
+let currentTarget = null;
 
-const config = {
+// STUN Servers (working worldwide)
+const rtcConfig = {
   iceServers: [
-    { urls: "stun:stun.l.google.com:19302" }
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:global.stun.twilio.com:3478?transport=udp" }
   ]
 };
 
 async function start() {
-  // Camera / Mic access
-  const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-  localVideo.srcObject = stream;
+  localStream = await navigator.mediaDevices.getUserMedia({
+    video: true, audio: true
+  });
+  localVideo.srcObject = localStream;
+  localVideo.muted = true;
+}
 
-  // Create RTCPeerConnection
-  peerConnection = new RTCPeerConnection(config);
+start();
 
-  // Add tracks for streaming
-  stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+function createPeerConnection() {
+  peerConnection = new RTCPeerConnection(rtcConfig);
 
-  // When we receive remote stream
+  localStream.getTracks().forEach(track => {
+    peerConnection.addTrack(track, localStream);
+  });
+
   peerConnection.ontrack = (event) => {
     remoteVideo.srcObject = event.streams[0];
   };
 
-  // ICE exchange
-  peerConnection.onicecandidate = (event) => {
-    if (event.candidate && partnerId) {
-      socket.emit("ice", { candidate: event.candidate, partner: partnerId });
+  peerConnection.onicecandidate = ({ candidate }) => {
+    if (candidate) {
+      socket.emit("ice", { candidate, target: currentTarget });
     }
   };
-
-  // Ask server to find a partner
-  socket.emit("find-partner");
 }
 
-// When server matches us
-socket.on("partner-found", async (data) => {
-  partnerId = data.partner;
+// Socket Events
+socket.on("match", async (partnerId) => {
+  currentTarget = partnerId;
+  createPeerConnection();
 
   const offer = await peerConnection.createOffer();
   await peerConnection.setLocalDescription(offer);
 
-  socket.emit("offer", { offer, partner: partnerId });
+  socket.emit("offer", { sdp: offer, target: partnerId });
 });
 
-// When receiving an offer
-socket.on("offer", async (data) => {
-  partnerId = data.sender;
+socket.on("offer", async ({ sdp, from }) => {
+  currentTarget = from;
+  createPeerConnection();
 
-  await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+  await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
 
   const answer = await peerConnection.createAnswer();
   await peerConnection.setLocalDescription(answer);
 
-  socket.emit("answer", { answer, partner: partnerId });
+  socket.emit("answer", { sdp: answer, target: from });
 });
 
-// When receiving answer
-socket.on("answer", async (data) => {
-  await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+socket.on("answer", async ({ sdp }) => {
+  await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
 });
 
-// When receiving ICE candidate
-socket.on("ice", async (data) => {
+socket.on("ice", async (candidate) => {
   try {
-    await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-  } catch (e) {
-    console.error("ICE error", e);
+    await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+  } catch (err) {
+    console.error("ICE error:", err);
   }
 });
 
-// Next button refresh partner system
 nextBtn.addEventListener("click", () => {
-  location.reload();
+  location.reload(); // simple working reset
 });
-
-// Start system
-start();
