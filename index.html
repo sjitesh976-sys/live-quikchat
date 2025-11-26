@@ -1,43 +1,31 @@
-<!doctype html>
+
+<!DOCTYPE html>
 <html lang="en">
-
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>QuikChat – Random Video</title>
-
-  <link rel="stylesheet" href="/style.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live QuikChat</title>
+<link rel="stylesheet" href="/public/style.css">
 </head>
-
 <body>
 
-  <header class="topbar">
-    <h1>QuikChat</h1>
-    <div id="online">Online: 0</div>
-  </header>
+<div class="container">
+  <h1>Live QuikChat</h1>
 
-  <main class="main">
-    <div class="video-wrap">
-      <video id="localVideo" autoplay muted playsinline></video>
-      <video id="remoteVideo" autoplay playsinline></video>
-    </div>
+  <div class="video-box">
+    <video id="localVideo" autoplay playsinline></video>
+    <video id="remoteVideo" autoplay playsinline></video>
+  </div>
 
-    <div class="controls">
-      <button id="startBtn">Start Chat</button>
-      <button id="nextBtn" disabled>Next</button>
-    </div>
+  <div class="controls">
+    <button id="start">Start Chat</button>
+    <button id="stop">Stop</button>
+  </div>
 
-    <div id="matching" class="overlay hidden">
-      <div class="box">
-        <div class="spinner"></div>
-        <div>Finding partner...</div>
-      </div>
-    </div>
-  </main>
+  <p class="status">Searching for a partner...</p>
+</div>
 
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-  <script src="/script.js"></script>
-
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="script.js"></script>
 </body>
 </html>
