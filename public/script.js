@@ -16,7 +16,6 @@ let localStream = null;
 let pc = null;
 let partnerId = null;
 let isMakingOffer = false;
-let polite = false; // not strictly needed for simple one-to-one, kept for collision handling
 
 // STUN servers (public). Add TURN if you have one.
 const RTC_CONFIG = {
@@ -26,7 +25,7 @@ const RTC_CONFIG = {
   ],
 };
 
-// simple logger to page + console
+// Debug logger
 function log(msg, ...args) {
   console.log(msg, ...args);
   if (debugDiv) {
@@ -36,100 +35,90 @@ function log(msg, ...args) {
   }
 }
 
-// Start camera (call on user click)
+//
+// 🚀 FIXED START CAMERA FUNCTION
+//
 async function startCamera() {
   try {
     log("Requesting camera & microphone permission...");
+
     localStream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: { width: { ideal: 640 }, height: { ideal: 480 } },
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+      },
+      video: {
+        width: { ideal: 640 },
+        height: { ideal: 480 },
+        facingMode: "user",   // Always open front camera
+      },
     });
 
     localVideo.srcObject = localStream;
     localVideo.muted = true;
     await localVideo.play();
-    log("Local camera started");
+    log("Local camera started successfully");
   } catch (err) {
     log("Camera / Microphone error:", err);
-    alert("Camera / Microphone not allowed! Check permissions & refresh.");
+    alert(
+      "Camera or Mic blocked or used by another app!\n" +
+      "Please:\n- Close other apps (WhatsApp, Instagram, Recorder etc)\n" +
+      "- Give Chrome camera permissions\n" +
+      "- Refresh the page"
+    );
   }
 }
 
-// Create peer connection and wire events
+// Create peer connection
 function createPeerConnection() {
   if (pc) return pc;
 
   pc = new RTCPeerConnection(RTC_CONFIG);
 
-  // Add local tracks
+  // Add tracks
   if (localStream) {
     for (const track of localStream.getTracks()) {
       pc.addTrack(track, localStream);
     }
   }
 
-  // Remote tracks -> remoteVideo
   const remoteStream = new MediaStream();
   remoteVideo.srcObject = remoteStream;
 
   pc.addEventListener("track", (evt) => {
-    // evt.streams[0] may be present
     if (evt.streams && evt.streams[0]) {
-      log("Got remote stream from evt.streams[0]");
       remoteVideo.srcObject = evt.streams[0];
     } else {
-      log("Got remote track, adding to MediaStream");
       remoteStream.addTrack(evt.track);
-      remoteVideo.srcObject = remoteStream;
     }
   });
 
-  // ICE candidates -> send to partner
   pc.addEventListener("icecandidate", (event) => {
     if (event.candidate && partnerId) {
-      log("Sending ICE candidate to", partnerId);
       socket.emit("ice-candidate", { candidate: event.candidate, partnerId });
-    }
-  });
-
-  pc.addEventListener("iceconnectionstatechange", () => {
-    log("ICE state:", pc.iceConnectionState);
-    if (pc.iceConnectionState === "failed") {
-      log("ICE failed — trying restart (if supported)");
-      pc.restartIce && pc.restartIce();
     }
   });
 
   return pc;
 }
 
-// When partner found by server
+// Found partner
 socket.on("partnerFound", async (id) => {
-  log("Partner found:", id);
   partnerId = id;
-
-  // Create PC and make offer
   createPeerConnection();
 
   try {
-    isMakingOffer = true;
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
     socket.emit("offer", { offer, partnerId });
-    log("Sent offer to", partnerId);
   } catch (err) {
     log("Offer creation error:", err);
-  } finally {
-    isMakingOffer = false;
   }
 });
 
-// When we receive an offer from someone
-socket.on("offer", async (data) => {
-  const { offer, sender } = data;
-  log("Received offer from", sender);
+// Received offer
+socket.on("offer", async ({ offer, sender }) => {
   partnerId = sender;
-
   createPeerConnection();
 
   try {
@@ -137,95 +126,54 @@ socket.on("offer", async (data) => {
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
     socket.emit("answer", { answer, partnerId });
-    log("Sent answer to", partnerId);
   } catch (err) {
     log("Error handling offer:", err);
   }
 });
 
-// When we receive an answer (for the offer we sent)
-socket.on("answer", async (data) => {
-  const { answer, sender } = data;
-  log("Received answer from", sender);
+// Received answer
+socket.on("answer", async ({ answer }) => {
   try {
     await pc.setRemoteDescription(new RTCSessionDescription(answer));
-    log("Remote description set (answer)");
   } catch (err) {
-    log("Error setting remote description (answer):", err);
+    log("Error setting answer:", err);
   }
 });
 
-// ICE candidates from partner
+// ICE candidate
 socket.on("ice-candidate", async (candidate) => {
-  log("Received ICE candidate:", candidate);
   try {
     await pc.addIceCandidate(new RTCIceCandidate(candidate));
-    log("Added ICE candidate");
   } catch (err) {
-    log("Error adding ICE candidate (may be during setting remote desc):", err);
+    log("Error adding ICE candidate:", err);
   }
 });
 
-// When partner disconnects (server will emit 'partnerDisconnected' if implemented)
-socket.on("partnerDisconnected", (id) => {
-  log("Partner disconnected:", id);
+// Partner disconnected
+socket.on("partnerDisconnected", () => {
   cleanupPeer();
   alert("Partner disconnected.");
 });
 
-// Button handlers
 startBtn.onclick = async () => {
-  if (!localStream) {
-    await startCamera();
-  } else {
-    log("Camera already started");
-  }
+  if (!localStream) await startCamera();
 };
 
 findBtn.onclick = async () => {
-  if (!localStream) {
-    // try to start camera immediately before finding partner
-    await startCamera();
-    if (!localStream) {
-      log("Cannot find partner: camera not started");
-      return;
-    }
-  }
-
-  // Clean any existing connection and then ask server to find a partner
+  if (!localStream) await startCamera();
   cleanupPeer();
   socket.emit("findPartner");
-  log("Searching for partner...");
 };
 
-// Clean up peer connection (but keep localStream)
 function cleanupPeer() {
   if (pc) {
-    try {
-      pc.close();
-    } catch (e) {}
+    pc.close();
     pc = null;
   }
   partnerId = null;
-  if (remoteVideo) {
-    remoteVideo.srcObject = null;
-  }
+  remoteVideo.srcObject = null;
 }
 
-// When the socket reconnects, reset state
 socket.on("connect", () => {
-  log("Connected to signalling server:", socket.id);
-});
-
-// If server asks to show debug logs
-socket.on("log", (m) => log("Server: " + m));
-
-// Optional: handle page unload to close tracks & socket
-window.addEventListener("beforeunload", () => {
-  try {
-    if (localStream) {
-      localStream.getTracks().forEach((t) => t.stop());
-    }
-  } catch (e) {}
-  socket.close();
+  log("Connected to server:", socket.id);
 });
