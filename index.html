@@ -1,10 +1,12 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Random Video Chat</title>
+
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
   <style>
     body {
@@ -40,6 +42,7 @@
       object-fit: cover;
     }
 
+    /* Buttons */
     #controls {
       margin-top: 15px;
       display: flex;
@@ -47,21 +50,29 @@
     }
 
     button {
-      padding: 12px 25px;
-      font-size: 18px;
-      font-weight: bold;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
       border: none;
-      border-radius: 50px;
+      font-size: 22px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
       cursor: pointer;
       transition: 0.3s;
+      color: white;
     }
 
     #startBtn { background: #28a745; }
     #nextBtn { background: #ff4757; }
     #muteBtn { background: #1e90ff; }
 
-    button:hover { opacity: 0.7; }
+    button:hover {
+      transform: scale(1.1);
+      opacity: 0.85;
+    }
 
+    /* Match overlay */
     #matching {
       position: fixed;
       top: 0; left: 0;
@@ -77,12 +88,12 @@
     }
 
     @keyframes pulse {
-      0% {opacity: 0.2;}
-      50% {opacity: 1;}
-      100% {opacity: 0.2;}
+      0% { opacity: 0.2; }
+      50% { opacity: 1; }
+      100% { opacity: 0.2; }
     }
 
-    /* mobile responsive */
+    /* Responsive for mobile */
     @media (max-width: 768px) {
       #videos {
         flex-direction: column;
@@ -93,8 +104,9 @@
         height: 50%;
       }
       button {
-        font-size: 16px;
-        padding: 10px 20px;
+        font-size: 18px;
+        width: 55px;
+        height: 55px;
       }
     }
   </style>
@@ -109,13 +121,14 @@
   </div>
 
   <div id="controls">
-    <button id="startBtn">Start</button>
-    <button id="nextBtn">Next</button>
-    <button id="muteBtn">Mute</button>
+    <button id="startBtn"><i class="fa-solid fa-play"></i></button>
+    <button id="nextBtn"><i class="fa-solid fa-forward"></i></button>
+    <button id="muteBtn"><i class="fa-solid fa-microphone-slash"></i></button>
   </div>
 
   <div id="matching">Finding a partner...</div>
 
+  <!-- Socket.io + Script -->
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="script.js"></script>
 
