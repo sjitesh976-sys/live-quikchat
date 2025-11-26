@@ -1,4 +1,3 @@
-
 const socket = io();
 let localStream;
 let remoteStream;
@@ -10,69 +9,83 @@ const config = {
   ],
 };
 
+// Debug alerts
+socket.on("connect", () => alert("Socket connected: " + socket.id));
+socket.on("partnerFound", () => alert("Partner Found!"));
+socket.on("partnerDisconnected", () => alert("Partner Disconnected!"));
+socket.on("offer", () => console.log("Offer received"));
+socket.on("answer", () => console.log("Answer received"));
+socket.on("ice-candidate", () => console.log("ICE Candidate received"));
+
 async function startCamera() {
   try {
-    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    localStream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: true,
+    });
+
     document.getElementById("localVideo").srcObject = localStream;
   } catch (err) {
     alert("Camera / Microphone not allowed!");
   }
 }
 
+// Start Camera Button
 document.getElementById("startBtn").addEventListener("click", () => {
   startCamera();
 });
 
+// FIND PARTNER BUTTON
 document.getElementById("findBtn").addEventListener("click", async () => {
+  console.log("Find button clicked");
+  socket.emit("findPartner");   // IMPORTANT FIX
   peerConnection = new RTCPeerConnection(config);
 
   remoteStream = new MediaStream();
   document.getElementById("remoteVideo").srcObject = remoteStream;
 
-  localStream.getTracks().forEach(track => {
+  localStream.getTracks().forEach((track) => {
     peerConnection.addTrack(track, localStream);
   });
 
   peerConnection.ontrack = (event) => {
-    event.streams[0].getTracks().forEach(track => {
+    event.streams[0].getTracks().forEach((track) => {
       remoteStream.addTrack(track);
     });
   };
 
   peerConnection.onicecandidate = (event) => {
     if (event.candidate) {
-      socket.emit("iceCandidate", { partner: partnerId, candidate: event.candidate });
+      socket.emit("ice-candidate", event.candidate);
     }
   };
-
-  socket.emit("findPartner");
 });
 
-let partnerId;
-
-socket.on("partnerFound", async (id) => {
-  partnerId = id;
-
+// OFFER
+socket.on("partnerFound", async () => {
   const offer = await peerConnection.createOffer();
   await peerConnection.setLocalDescription(offer);
-
-  socket.emit("offer", { partner: partnerId, sdp: offer });
+  socket.emit("offer", offer);
 });
 
-socket.on("offer", async (sdp) => {
-  partnerId = socket.id;
-
-  await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
+// RECEIVE OFFER
+socket.on("offer", async (offer) => {
+  await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
   const answer = await peerConnection.createAnswer();
   await peerConnection.setLocalDescription(answer);
-
-  socket.emit("answer", { partner: partnerId, sdp: answer });
+  socket.emit("answer", answer);
 });
 
-socket.on("answer", async (sdp) => {
-  await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
+// RECEIVE ANSWER
+socket.on("answer", async (answer) => {
+  await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
 });
 
-socket.on("iceCandidate", async (candidate) => {
-  await peerConnection.addIceCandidate(candidate);
+// ICE
+socket.on("ice-candidate", async (candidate) => {
+  try {
+    await peerConnection.addIceCandidate(candidate);
+  } catch (err) {
+    console.error("ICE error", err);
+  }
 });
