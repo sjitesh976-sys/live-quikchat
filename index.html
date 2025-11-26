@@ -1,36 +1,31 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Random Video Chat</title>
-    <link rel="stylesheet" href="style.css" />
+
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
     <h1 class="title">Random Video Chat</h1>
 
     <div class="video-container">
-        <video id="localVideo" autoplay playsinline muted></video>
+        <video id="localVideo" autoplay muted playsinline></video>
         <video id="remoteVideo" autoplay playsinline></video>
     </div>
 
     <div class="controls">
-        <button id="startBtn" class="start">▶</button>
-        <button id="nextBtn" class="next">⏭</button>
-        <button id="muteBtn" class="mute">🔇</button>
-        <button id="endBtn" class="end">⏹</button>
+        <button class="start" onclick="start()">▶️ Start</button>
+        <button class="next" onclick="next()">⏭ Next</button>
+        <button class="mute" onclick="toggleMute()">🔇 Mute</button>
+        <button class="end" onclick="endCall()">⏹ End</button>
     </div>
 
-<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-<script src="script.js"></script>
-
-<script>
-document.getElementById("startBtn").addEventListener("click", startCall);
-document.getElementById("nextBtn").addEventListener("click", nextUser);
-document.getElementById("muteBtn").addEventListener("click", toggleMute);
-document.getElementById("endBtn").addEventListener("click", endCall);
-</script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="script.js"></script>
 
 </body>
 </html>
