@@ -1,53 +1,69 @@
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
-const path = require("path");
 
 const app = express();
 const server = http.createServer(app);
-
 const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] }
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
 });
 
 let waitingUser = null;
 
-io.on("connection", socket => {
-  console.log("user", socket.id);
+// total online count update
+function updateOnlineCount() {
+  io.emit("online-count", io.engine.clientsCount);
+}
 
-  socket.emit("online-count", io.engine.clientsCount);
+io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
+  updateOnlineCount();
 
-  socket.on("find-partner", () => {
-    if (!waitingUser) {
-      waitingUser = socket.id;
-      socket.emit("waiting");
-    } else {
-      io.to(socket.id).emit("partner-found", { partner: waitingUser });
-      io.to(waitingUser).emit("partner-found", { partner: socket.id });
-      waitingUser = null;
-    }
+  // Find partner
+  if (waitingUser) {
+    socket.partnerId = waitingUser.id;
+    waitingUser.partnerId = socket.id;
+
+    socket.emit("partner", waitingUser.id);
+    waitingUser.emit("partner", socket.id);
+
+    waitingUser = null;
+  } else {
+    waitingUser = socket;
+  }
+
+  // WebRTC signal exchange
+  socket.on("signal", (data) => {
+    io.to(data.partnerId).emit("signal", {
+      signal: data.signal,
+      from: socket.id
+    });
   });
 
-  socket.on("offer", data => io.to(data.partner).emit("offer", { offer:data.offer, sender:socket.id }));
-  socket.on("answer", data => io.to(data.partner).emit("answer", { answer:data.answer }));
-  socket.on("ice", data => io.to(data.partner).emit("ice", { candidate:data.candidate }));
-
-  socket.on("chat-message", data => io.to(data.partner).emit("chat-message", { message:data.message }));
-
+  // Next button handling
   socket.on("next", () => {
-    io.to(socket.id).emit("waiting");
-    waitingUser = socket.id;
+    if (socket.partnerId) {
+      io.to(socket.partnerId).emit("end");
+    }
+    waitingUser = socket;
   });
 
+  // On disconnect
   socket.on("disconnect", () => {
-    if (waitingUser === socket.id) waitingUser = null;
-    socket.broadcast.emit("partner-disconnected");
+    console.log("User disconnected:", socket.id);
+    updateOnlineCount();
+
+    if (socket.partnerId) {
+      io.to(socket.partnerId).emit("end");
+    }
+    if (waitingUser === socket) waitingUser = null;
   });
 });
 
-app.use(express.static(path.join(__dirname)));
-
-app.get("/", (req,res)=> res.sendFile(path.join(__dirname, "index.html")));
-
-const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => console.log("SERVER on", PORT));
+// Server port
+server.listen(10000, () => {
+  console.log("Server is running on port 10000");
+});
