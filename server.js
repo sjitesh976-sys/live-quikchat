@@ -1,69 +1,22 @@
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
-
+const express = require('express');
 const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
+const http = require('http').createServer(app);
+const io = require('socket.io')(http, {
   cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
+    origin: "*"
   }
 });
 
-let waitingUser = null;
-
-// total online count update
-function updateOnlineCount() {
-  io.emit("online-count", io.engine.clientsCount);
-}
+app.use(express.static('public'));
 
 io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
-  updateOnlineCount();
-
-  // Find partner
-  if (waitingUser) {
-    socket.partnerId = waitingUser.id;
-    waitingUser.partnerId = socket.id;
-
-    socket.emit("partner", waitingUser.id);
-    waitingUser.emit("partner", socket.id);
-
-    waitingUser = null;
-  } else {
-    waitingUser = socket;
-  }
-
-  // WebRTC signal exchange
-  socket.on("signal", (data) => {
-    io.to(data.partnerId).emit("signal", {
-      signal: data.signal,
-      from: socket.id
-    });
-  });
-
-  // Next button handling
-  socket.on("next", () => {
-    if (socket.partnerId) {
-      io.to(socket.partnerId).emit("end");
-    }
-    waitingUser = socket;
-  });
-
-  // On disconnect
-  socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
-    updateOnlineCount();
-
-    if (socket.partnerId) {
-      io.to(socket.partnerId).emit("end");
-    }
-    if (waitingUser === socket) waitingUser = null;
+  console.log("User connected");
+  socket.on("chatMessage", (msg) => {
+    io.emit("chatMessage", msg);
   });
 });
 
-// Server port
-server.listen(10000, () => {
-  console.log("Server is running on port 10000");
+const PORT = process.env.PORT || 3000;
+http.listen(PORT, () => {
+  console.log("Server running on port " + PORT);
 });
