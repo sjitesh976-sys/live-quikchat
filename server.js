@@ -9,15 +9,24 @@ const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, "public")));
 
-let waitingUser = null; // store waiting user
+let waitingUser = null;
+
+// store active pairs so we know who is connected to whom
+const pairs = {}; // { socketId: partnerId }
 
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
+  // find partner
   socket.on("findPartner", () => {
     if (waitingUser && waitingUser !== socket.id) {
       io.to(socket.id).emit("partnerFound", waitingUser);
       io.to(waitingUser).emit("partnerFound", socket.id);
+
+      // store pair
+      pairs[socket.id] = waitingUser;
+      pairs[waitingUser] = socket.id;
+
       waitingUser = null;
     } else {
       waitingUser = socket.id;
@@ -25,6 +34,7 @@ io.on("connection", (socket) => {
     }
   });
 
+  // WebRTC exchange
   socket.on("offer", (data) => {
     io.to(data.partnerId).emit("offer", {
       offer: data.offer,
@@ -43,9 +53,18 @@ io.on("connection", (socket) => {
     io.to(data.partnerId).emit("ice-candidate", data.candidate);
   });
 
+  // handle disconnect
   socket.on("disconnect", () => {
-    if (waitingUser === socket.id) waitingUser = null;
     console.log("User disconnected:", socket.id);
+
+    if (waitingUser === socket.id) waitingUser = null;
+
+    const partnerId = pairs[socket.id];
+    if (partnerId) {
+      io.to(partnerId).emit("partnerDisconnected", socket.id);
+      delete pairs[partnerId];
+      delete pairs[socket.id];
+    }
   });
 });
 
