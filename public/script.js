@@ -1,53 +1,79 @@
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
-const path = require("path");
+const socket = io();
+let localStream;
+let peerConnection;
+let partnerId;
 
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
+// Buttons:
+document.getElementById("startBtn").onclick = startCamera;
+document.getElementById("findBtn").onclick = () => {
+  socket.emit("findPartner");
+};
 
-app.use(express.static(path.join(__dirname, "public")));
-
-let waitingUser = null; // store waiting user
-
-io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
-
-  socket.on("findPartner", () => {
-    if (waitingUser && waitingUser !== socket.id) {
-      io.to(socket.id).emit("partnerFound", waitingUser);
-      io.to(waitingUser).emit("partnerFound", socket.id);
-      waitingUser = null;
-    } else {
-      waitingUser = socket.id;
-      console.log("User waiting:", socket.id);
-    }
-  });
-
-  socket.on("offer", (data) => {
-    io.to(data.partnerId).emit("offer", {
-      offer: data.offer,
-      sender: socket.id,
+async function startCamera() {
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: true
     });
-  });
 
-  socket.on("answer", (data) => {
-    io.to(data.partnerId).emit("answer", {
-      answer: data.answer,
-      sender: socket.id,
-    });
-  });
+    const localVideo = document.getElementById("localVideo");
+    localVideo.srcObject = localStream;
+    localVideo.muted = true;
+    await localVideo.play();
+    console.log("Camera started");
+  } catch (err) {
+    console.error("Camera Error:", err);
+  }
+}
 
-  socket.on("ice-candidate", (data) => {
-    io.to(data.partnerId).emit("ice-candidate", data.candidate);
-  });
+socket.on("partnerFound", async (id) => {
+  console.log("Partner found:", id);
+  partnerId = id;
+  await createConnection();
 
-  socket.on("disconnect", () => {
-    if (waitingUser === socket.id) waitingUser = null;
-    console.log("User disconnected:", socket.id);
-  });
+  const offer = await peerConnection.createOffer();
+  await peerConnection.setLocalDescription(offer);
+  socket.emit("offer", { offer, partnerId });
 });
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+socket.on("offer", async ({ offer, sender }) => {
+  partnerId = sender;
+  await createConnection();
+  await peerConnection.setRemoteDescription(offer);
+
+  const answer = await peerConnection.createAnswer();
+  await peerConnection.setLocalDescription(answer);
+
+  socket.emit("answer", { answer, partnerId });
+});
+
+socket.on("answer", async (data) => {
+  await peerConnection.setRemoteDescription(data.answer);
+});
+
+socket.on("ice-candidate", (candidate) => {
+  if (peerConnection && candidate) {
+    peerConnection.addIceCandidate(candidate);
+  }
+});
+
+async function createConnection() {
+  peerConnection = new RTCPeerConnection();
+  
+  localStream.getTracks().forEach(track => {
+    peerConnection.addTrack(track, localStream);
+  });
+
+  peerConnection.ontrack = (event) => {
+    document.getElementById("remoteVideo").srcObject = event.streams[0];
+  };
+
+  peerConnection.onicecandidate = (event) => {
+    if (event.candidate) {
+      socket.emit("ice-candidate", {
+        candidate: event.candidate,
+        partnerId
+      });
+    }
+  };
+}
