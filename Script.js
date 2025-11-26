@@ -1,135 +1,102 @@
-// SOCKET CONNECTION
-const socket = io("https://live-quikchat-2025-quikchat-random.onrender.com", {
-  transports: ["websocket", "polling"]
-});
-
-// VIDEO ELEMENTS
-const localVideo = document.getElementById("localVideo");
-const remoteVideo = document.getElementById("remoteVideo");
-const matchingScreen = document.getElementById("matching");
-
-// WEBRTC VARIABLES
+const socket = io();
 let localStream;
 let peerConnection;
 let partnerId = null;
 
 const servers = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" }
+  ]
 };
 
-// SHOW / HIDE MATCHING SCREEN
-function showMatching() {
-  matchingScreen.style.display = "flex";
-}
-function hideMatching() {
-  matchingScreen.style.display = "none";
-}
+const localVideo = document.getElementById("localVideo");
+const remoteVideo = document.getElementById("remoteVideo");
+const startBtn = document.getElementById("startBtn");
+const nextBtn = document.getElementById("nextBtn");
+const muteBtn = document.getElementById("muteBtn");
+const matching = document.getElementById("matching");
 
-// START CAMERA
-async function startCamera() {
-  localStream = await navigator.mediaDevices.getUserMedia({
-    video: true,
-    audio: true
-  });
+startBtn.onclick = async () => {
+  matching.style.display = "flex";
+
+  localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
   localVideo.srcObject = localStream;
-}
-startCamera();
 
-// START CHAT FUNCTION
-async function startChat() {
+  createPeerConnection();
+
+  socket.emit("find-partner");
+};
+
+nextBtn.onclick = () => {
+  socket.emit("next");
+  matching.style.display = "flex";
+};
+
+muteBtn.onclick = () => {
+  const enabled = localStream.getAudioTracks()[0].enabled;
+  localStream.getAudioTracks()[0].enabled = !enabled;
+  muteBtn.innerHTML = enabled 
+    ? '<i class="fa-solid fa-microphone"></i>' 
+    : '<i class="fa-solid fa-microphone-slash"></i>';
+};
+
+function createPeerConnection() {
   peerConnection = new RTCPeerConnection(servers);
 
-  localStream.getTracks().forEach(track => {
-    peerConnection.addTrack(track, localStream);
-  });
+  localStream.getTracks().forEach(track =>
+    peerConnection.addTrack(track, localStream)
+  );
 
-  peerConnection.ontrack = event => {
+  peerConnection.ontrack = (event) => {
     remoteVideo.srcObject = event.streams[0];
+    matching.style.display = "none";
   };
 
-  peerConnection.onicecandidate = event => {
-    if (event.candidate) {
+  peerConnection.onicecandidate = (event) => {
+    if (event.candidate && partnerId) {
       socket.emit("signal", {
-        signal: event.candidate,
-        partnerId
+        partnerId,
+        signal: { candidate: event.candidate }
       });
     }
   };
 }
 
-// WHEN PARTNER FOUND
 socket.on("partner", async (id) => {
   partnerId = id;
-  await startChat();
-
-  hideMatching();
 
   const offer = await peerConnection.createOffer();
   await peerConnection.setLocalDescription(offer);
 
   socket.emit("signal", {
-    signal: offer,
-    partnerId
+    partnerId,
+    signal: { description: peerConnection.localDescription }
   });
 });
 
-// SIGNAL HANDLING
 socket.on("signal", async (data) => {
-  if (data.signal.type === "offer") {
-    await startChat();
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
+  if (data.signal.description) {
+    await peerConnection.setRemoteDescription(data.signal.description);
+    if (data.signal.description.type === "offer") {
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
 
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-
-    socket.emit("signal", {
-      signal: answer,
-      partnerId
-    });
-
-  } else if (data.signal.type === "answer") {
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
-
-  } else if (data.signal.candidate) {
-    try {
-      await peerConnection.addIceCandidate(data.signal);
-    } catch (e) {
-      console.error("ICE Error", e);
+      socket.emit("signal", {
+        partnerId: data.from,
+        signal: { description: peerConnection.localDescription }
+      });
     }
+  }
+
+  if (data.signal.candidate) {
+    await peerConnection.addIceCandidate(data.signal.candidate);
   }
 });
 
-// ONLINE COUNT
-socket.on("online-count", (count) => {
-  document.getElementById("online").innerText = count;
-});
-
-// PARTNER DISCONNECTED
 socket.on("end", () => {
-  if (peerConnection) peerConnection.close();
   remoteVideo.srcObject = null;
-  showMatching();
+  matching.style.display = "flex";
+
+  peerConnection.close();
+  createPeerConnection();
 });
-
-// BUTTON ACTIONS
-document.getElementById("startBtn").onclick = () => {
-  showMatching();
-  socket.emit("next");
-};
-
-document.getElementById("nextBtn").onclick = () => {
-  showMatching();
-  if (peerConnection) peerConnection.close();
-  remoteVideo.srcObject = null;
-  socket.emit("next");
-};
-
-document.getElementById("muteBtn").onclick = () => {
-  const audio = localStream.getAudioTracks()[0];
-  audio.enabled = !audio.enabled;
-};
-
-document.getElementById("stopVideoBtn").onclick = () => {
-  const video = localStream.getVideoTracks()[0];
-  video.enabled = !video.enabled;
-};
