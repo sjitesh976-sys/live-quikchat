@@ -1,85 +1,97 @@
+// Connect to socket server (Render hosted)
+const socket = io("https://live-quikchatz.onrender.com");
 
-const socket = io("https://live-quikchat-u.onrender.com");
-
+// HTML elements
 const localVideo = document.getElementById("localVideo");
 const remoteVideo = document.getElementById("remoteVideo");
 const nextBtn = document.getElementById("nextBtn");
+const statusText = document.getElementById("status");
 
-let peerConnection;
 let localStream;
+let peerConnection;
 let currentTarget = null;
 
-// STUN Servers (working worldwide)
-const rtcConfig = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:global.stun.twilio.com:3478?transport=udp" }
-  ]
+const iceServers = {
+    iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+        { urls: "stun:global.stun.twilio.com:3478" }
+    ]
 };
 
-async function start() {
-  localStream = await navigator.mediaDevices.getUserMedia({
-    video: true, audio: true
-  });
-  localVideo.srcObject = localStream;
-  localVideo.muted = true;
+// Start video stream
+async function startVideo() {
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    localVideo.srcObject = localStream;
 }
 
-start();
+startVideo();
 
+// Request random match
+function findPartner() {
+    statusText.textContent = "Searching for partner...";
+    socket.emit("find");
+}
+
+// Create peer connection
 function createPeerConnection() {
-  peerConnection = new RTCPeerConnection(rtcConfig);
+    peerConnection = new RTCPeerConnection(iceServers);
 
-  localStream.getTracks().forEach(track => {
-    peerConnection.addTrack(track, localStream);
-  });
+    localStream.getTracks().forEach(track =>
+        peerConnection.addTrack(track, localStream)
+    );
 
-  peerConnection.ontrack = (event) => {
-    remoteVideo.srcObject = event.streams[0];
-  };
+    peerConnection.ontrack = event => {
+        remoteVideo.srcObject = event.streams[0];
+    };
 
-  peerConnection.onicecandidate = ({ candidate }) => {
-    if (candidate) {
-      socket.emit("ice", { candidate, target: currentTarget });
-    }
-  };
+    peerConnection.onicecandidate = event => {
+        if (event.candidate) {
+            socket.emit("ice", { candidate: event.candidate, to: currentTarget });
+        }
+    };
 }
 
-// Socket Events
+// On match
 socket.on("match", async (partnerId) => {
-  currentTarget = partnerId;
-  createPeerConnection();
+    currentTarget = partnerId;
+    statusText.textContent = "Partner found! Connecting...";
 
-  const offer = await peerConnection.createOffer();
-  await peerConnection.setLocalDescription(offer);
+    createPeerConnection();
 
-  socket.emit("offer", { sdp: offer, target: partnerId });
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+
+    socket.emit("offer", { sdp: offer, target: partnerId });
 });
 
+// Receive offer
 socket.on("offer", async ({ sdp, from }) => {
-  currentTarget = from;
-  createPeerConnection();
+    currentTarget = from;
+    createPeerConnection();
 
-  await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
+    await peerConnection.setRemoteDescription(sdp);
 
-  const answer = await peerConnection.createAnswer();
-  await peerConnection.setLocalDescription(answer);
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
 
-  socket.emit("answer", { sdp: answer, target: from });
+    socket.emit("answer", { sdp: answer, target: from });
 });
 
+// Receive answer
 socket.on("answer", async ({ sdp }) => {
-  await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
+    await peerConnection.setRemoteDescription(sdp);
 });
 
+// Receive ICE
 socket.on("ice", async (candidate) => {
-  try {
-    await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-  } catch (err) {
-    console.error("ICE error:", err);
-  }
+    try {
+        await peerConnection.addIceCandidate(candidate);
+    } catch (err) {
+        console.error("ICE error:", err);
+    }
 });
 
+// NEXT button → reload & find new
 nextBtn.addEventListener("click", () => {
-  location.reload(); // simple working reset
+    location.reload();
 });
