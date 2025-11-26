@@ -1,11 +1,53 @@
-* { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
-body { background: #0f0f0f; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; }
-.container { width: 90%; max-width: 1100px; text-align: center; }
-h1 { font-size: 32px; margin-bottom: 20px; color: #00eaff; }
-.video-box { display: flex; justify-content: space-between; width: 100%; gap: 15px; }
-video { width: 48%; height: 350px; background: #1b1b1b; border-radius: 10px; border: 2px solid #00eaff; }
-.controls { margin-top: 20px; }
-button { padding: 12px 25px; border: none; font-size: 17px; border-radius: 8px; cursor: pointer; margin: 5px; background: #00eaff; color: black; font-weight: bold; }
-button:hover { background: #008ba3; }
-.status { margin-top: 15px; font-size: 18px; color: #ffd84d; }
-@media(max-width: 768px) { .video-box { flex-direction: column; } video { width: 100%; height: 260px; } }
+const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
+const path = require("path");
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
+
+app.use(express.static(path.join(__dirname, "public")));
+
+let waitingUser = null; // store waiting user
+
+io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
+
+  socket.on("findPartner", () => {
+    if (waitingUser && waitingUser !== socket.id) {
+      io.to(socket.id).emit("partnerFound", waitingUser);
+      io.to(waitingUser).emit("partnerFound", socket.id);
+      waitingUser = null;
+    } else {
+      waitingUser = socket.id;
+      console.log("User waiting:", socket.id);
+    }
+  });
+
+  socket.on("offer", (data) => {
+    io.to(data.partnerId).emit("offer", {
+      offer: data.offer,
+      sender: socket.id,
+    });
+  });
+
+  socket.on("answer", (data) => {
+    io.to(data.partnerId).emit("answer", {
+      answer: data.answer,
+      sender: socket.id,
+    });
+  });
+
+  socket.on("ice-candidate", (data) => {
+    io.to(data.partnerId).emit("ice-candidate", data.candidate);
+  });
+
+  socket.on("disconnect", () => {
+    if (waitingUser === socket.id) waitingUser = null;
+    console.log("User disconnected:", socket.id);
+  });
+});
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
