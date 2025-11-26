@@ -1,92 +1,58 @@
+
 const socket = io();
-let localStream;
-let remoteStream;
+
+// DOM elements
+const video = document.getElementById("localVideo");
+const remoteVideo = document.getElementById("remoteVideo");
+const findBtn = document.getElementById("findBtn");
+
 let peerConnection;
 
-const config = {
-    iceServers: [
-        { urls: ["stun:stun.l.google.com:19302"] }
-    ],
-};
-
-async function startCamera() {
-    try {
-        localStream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: true,
-        });
-
-        const localVideo = document.getElementById("localVideo");
-        localVideo.srcObject = localStream;
-        localVideo.muted = true;
-        await localVideo.play();
-
-        console.log("Camera started successfully");
-    } catch (err) {
-        console.error("Camera Error:", err);
-        alert("Please allow Camera & Microphone permission.");
-    }
-}
-
-async function createPeerConnection() {
-    peerConnection = new RTCPeerConnection(config);
-
-    remoteStream = new MediaStream();
-    document.getElementById("remoteVideo").srcObject = remoteStream;
-
-    localStream.getTracks().forEach(track => {
-        peerConnection.addTrack(track, localStream);
-    });
-
-    peerConnection.ontrack = (event) => {
-        event.streams[0].getTracks().forEach(track => {
-            remoteStream.addTrack(track);
-        });
-        console.log("Remote video started");
-    };
-
-    peerConnection.onicecandidate = (event) => {
-        if (event.candidate) {
-            socket.emit("ice-candidate", event.candidate);
-        }
-    };
-}
-
-document.getElementById("findBtn").addEventListener("click", async () => {
-    console.log("Searching for partner...");
-    socket.emit("find");
+findBtn.addEventListener("click", () => {
+  console.log("Find button clicked");
+  socket.emit("find");
 });
 
-socket.on("partnerFound", async () => {
-    console.log("Partner found!");
-    await createPeerConnection();
+// When matched with another user
+socket.on("match", async (userId) => {
+  console.log("Matched with user:", userId);
 
-    const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
+  const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+  video.srcObject = stream;
 
-    socket.emit("offer", offer);
+  peerConnection = new RTCPeerConnection();
+  stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+
+  peerConnection.ontrack = (event) => {
+    remoteVideo.srcObject = event.streams[0];
+  };
+
+  const offer = await peerConnection.createOffer();
+  await peerConnection.setLocalDescription(offer);
+
+  socket.emit("offer", { offer, to: userId });
 });
 
-socket.on("offer", async (offer) => {
-    console.log("Offer received");
-    await createPeerConnection();
+socket.on("offer", async ({ offer, from }) => {
+  console.log("Received offer");
+  peerConnection = new RTCPeerConnection();
 
-    await peerConnection.setRemoteDescription(offer);
+  peerConnection.ontrack = (event) => {
+    remoteVideo.srcObject = event.streams[0];
+  };
 
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
+  const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+  video.srcObject = stream;
+  stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
 
-    socket.emit("answer", answer);
+  await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+  const answer = await peerConnection.createAnswer();
+  await peerConnection.setLocalDescription(answer);
+
+  socket.emit("answer", { answer, to: from });
 });
 
-socket.on("answer", async (answer) => {
-    console.log("Answer received");
-    await peerConnection.setRemoteDescription(answer);
+socket.on("answer", async ({ answer }) => {
+  console.log("Answer received");
+  await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
 });
-
-socket.on("ice-candidate", async (candidate) => {
-    console.log("ICE Candidate received");
-    await peerConnection.addIceCandidate(candidate);
-});
-
-startCamera();
