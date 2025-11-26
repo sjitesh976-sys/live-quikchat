@@ -1,0 +1,57 @@
+// feed.js
+const socket = io();
+const storiesEl = document.getElementById("stories");
+const postsEl = document.getElementById("posts");
+const onlineEl = document.getElementById("onlineCount");
+
+// sample stories & posts (placeholders)
+const sampleStories = ["You","Aarav","Riya","Karan","Mira","Sahil","Neha","Vikram"];
+const samplePosts = [
+  {user:"Aarav",img:"https://picsum.photos/800/600?random=1",caption:"Sunset vibes"},
+  {user:"Riya",img:"https://picsum.photos/800/600?random=2",caption:"Mountain trip"},
+  {user:"Mira",img:"https://picsum.photos/800/600?random=3",caption:"Foodie day"}
+];
+
+function renderStories(){
+  storiesEl.innerHTML = "";
+  sampleStories.forEach(name=>{
+    const d = document.createElement("div");
+    d.className = "story";
+    d.innerText = name[0];
+    d.title = name;
+    storiesEl.appendChild(d);
+  });
+}
+
+function renderPosts(){
+  postsEl.innerHTML = "";
+  samplePosts.forEach(p=>{
+    const div = document.createElement("div");
+    div.className = "post";
+    div.innerHTML = `
+      <div class="meta"><div class="avatar"></div><div class="username">${p.user}</div></div>
+      <img src="${p.img}" alt="post" loading="lazy" />
+      <div class="actions"><span class="like">♥</span><span>💬</span></div>
+      <div class="caption">${p.caption}</div>
+    `;
+    postsEl.appendChild(div);
+  });
+}
+
+renderStories();
+renderPosts();
+
+// nav buttons
+document.getElementById("videoBtn").addEventListener("click", () => {
+  // go to video chat page
+  location.href = "/video.html";
+});
+document.getElementById("homeBtn").addEventListener("click", () => location.href="/");
+document.getElementById("searchBtn").addEventListener("click", ()=>alert("Search coming soon"));
+document.getElementById("addBtn").addEventListener("click", ()=>alert("Add post coming soon"));
+document.getElementById("profileBtn").addEventListener("click", ()=>alert("Profile page coming soon"));
+
+// online count from server
+socket.on("online-count", n => {
+  onlineEl.innerText = n;
+});
